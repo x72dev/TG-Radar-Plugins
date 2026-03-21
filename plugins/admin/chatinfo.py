@@ -62,9 +62,11 @@ def setup(ctx: PluginContext):
             elif getattr(entity, "broadcast", False):
                 stype = "频道"
             elif hasattr(entity, "participants_count"):
-                stype = "群组"
-            else:
-                stype = "私聊"
+                        stype = "群组"
+                    elif getattr(entity, "bot", False):
+                        stype = "BOT"
+                    else:
+                        stype = "用户"
         except Exception:
             title, stype = "无法获取", "未知"
 
