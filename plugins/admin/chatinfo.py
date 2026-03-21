@@ -12,7 +12,7 @@ def setup(ctx: PluginContext):
         await ctx.reply(event, ui.panel("TG-Radar · 获取群 ID", [ui.section("用法", ["从任意群/频道转发一条消息到收藏夹，系统自动识别并回复 ID。"])]), prefer_edit=False)
 
     # ── 转发消息自动提取群 ID ──
-@ctx.hook("chatinfo_forward", summary="检测转发消息提取来源群 ID", order=10)
+    @ctx.hook("chatinfo_forward", summary="检测转发消息提取来源群 ID", order=10)
     async def on_forward(app, event):
         if not event.is_private:
             return
