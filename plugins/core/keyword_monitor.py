@@ -74,7 +74,7 @@ def setup(ctx: PluginContext):
 
     @ctx.healthcheck
     async def check(app):
-        state = app.state
+        state = getattr(app, "state", None)
         if state is None:
             return "warn", "运行时状态未初始化"
         return "ok", f"监听 {len(state.target_map)} 个目标，{state.valid_rules_count} 条规则"
