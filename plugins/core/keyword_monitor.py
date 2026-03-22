@@ -82,6 +82,76 @@ def setup(ctx: PluginContext):
             except Exception as exc:
                 log.exception("告警发送失败: %s", exc)
                 ctx.db.log_event("ERROR", "SEND_ALERT", str(exc))
+    @ctx.command("block", summary="屏蔽用户 ID 或昵称关键词", usage="block id 123456 / block name 广告", category="监控")
+    async def cmd_block(app, event, args):
+        parts = args.strip().split(None, 1)
+        if len(parts) < 2:
+            return await ctx.reply(event, ui.panel("TG-Radar · 屏蔽", [ui.section("用法", [
+                f"<code>{app.config.cmd_prefix}block id 用户ID</code>  按 ID 屏蔽",
+                f"<code>{app.config.cmd_prefix}block name 关键词</code>  按昵称屏蔽",
+                f"<code>{app.config.cmd_prefix}unblock id 用户ID</code>  取消屏蔽",
+                f"<code>{app.config.cmd_prefix}unblock name 关键词</code>  取消屏蔽",
+                f"<code>{app.config.cmd_prefix}blocklist</code>  查看屏蔽列表",
+            ])]), prefer_edit=False)
+        kind, val = parts[0].lower(), parts[1].strip()
+        if kind == "id":
+            lst = list(ctx.config.get("sender_id_blacklist", []))
+            try:
+                v = int(val)
+            except ValueError:
+                return await ctx.reply(event, ui.panel("TG-Radar · 错误", [ui.section("", ["ID 必须是数字"])]), prefer_edit=False)
+            if v not in lst:
+                lst.append(v)
+                ctx.config.set("sender_id_blacklist", lst)
+            await ctx.reply(event, ui.panel("TG-Radar · 已屏蔽", [ui.section("用户 ID", [ui.bullet("ID", v)])]), prefer_edit=False)
+        elif kind == "name":
+            lst = list(ctx.config.get("sender_name_keywords", []))
+            if val not in lst:
+                lst.append(val)
+                ctx.config.set("sender_name_keywords", lst)
+            await ctx.reply(event, ui.panel("TG-Radar · 已屏蔽", [ui.section("昵称关键词", [ui.bullet("关键词", val)])]), prefer_edit=False)
+        else:
+            await ctx.reply(event, ui.panel("TG-Radar · 错误", [ui.section("", [f"类型必须是 id 或 name"])]), prefer_edit=False)
+
+    @ctx.command("unblock", summary="取消屏蔽", usage="unblock id 123456 / unblock name 广告", category="监控")
+    async def cmd_unblock(app, event, args):
+        parts = args.strip().split(None, 1)
+        if len(parts) < 2:
+            return await ctx.reply(event, ui.panel("TG-Radar · 用法", [ui.section("", [f"<code>{app.config.cmd_prefix}unblock id 用户ID</code>", f"<code>{app.config.cmd_prefix}unblock name 关键词</code>"])]), prefer_edit=False)
+        kind, val = parts[0].lower(), parts[1].strip()
+        if kind == "id":
+            lst = list(ctx.config.get("sender_id_blacklist", []))
+            try:
+                v = int(val)
+                if v in lst:
+                    lst.remove(v)
+                    ctx.config.set("sender_id_blacklist", lst)
+                    await ctx.reply(event, ui.panel("TG-Radar · 已取消屏蔽", [ui.section("", [ui.bullet("ID", v)])]), prefer_edit=False)
+                else:
+                    await ctx.reply(event, ui.panel("TG-Radar · 不在列表中", []), prefer_edit=False)
+            except ValueError:
+                await ctx.reply(event, ui.panel("TG-Radar · 错误", [ui.section("", ["ID 必须是数字"])]), prefer_edit=False)
+        elif kind == "name":
+            lst = list(ctx.config.get("sender_name_keywords", []))
+            if val in lst:
+                lst.remove(val)
+                ctx.config.set("sender_name_keywords", lst)
+                await ctx.reply(event, ui.panel("TG-Radar · 已取消屏蔽", [ui.section("", [ui.bullet("关键词", val)])]), prefer_edit=False)
+            else:
+                await ctx.reply(event, ui.panel("TG-Radar · 不在列表中", []), prefer_edit=False)
+
+    @ctx.command("blocklist", summary="查看屏蔽列表", usage="blocklist", category="监控")
+    async def cmd_blocklist(app, event, args):
+        ids = ctx.config.get("sender_id_blacklist", [])
+        names = ctx.config.get("sender_name_keywords", [])
+        secs = []
+        if ids:
+            secs.append(ui.section("屏蔽 ID", [f"<code>{i}</code>" for i in ids]))
+        if names:
+            secs.append(ui.section("屏蔽昵称关键词", [f"<code>{n}</code>" for n in names]))
+        if not secs:
+            secs.append(ui.section("状态", ["<i>暂无屏蔽</i>"]))
+        await ctx.reply(event, ui.panel("TG-Radar · 屏蔽列表", secs), prefer_edit=False)
 
     @ctx.healthcheck
     async def check(app):
