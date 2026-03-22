@@ -90,8 +90,10 @@ def setup(ctx: PluginContext):
                         stype = "频道"
                     elif hasattr(entity, "participants_count"):
                         stype = "群组"
+                    elif getattr(entity, "bot", False):
+                        stype = "Bot"
                     else:
-                        stype = "私聊"
+                        stype = "用户"
                 except Exception as exc:
                     log.warning("获取实体失败 %s: %s", source_id, exc)
                     title = "无法获取"
