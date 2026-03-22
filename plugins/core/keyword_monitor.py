@@ -1,7 +1,7 @@
 """关键词监控与告警发送。"""
 
 PLUGIN_META = {"name": "keyword_monitor", "version": "6.0.0", "description": "关键词监控与告警", "kind": "core",
-    "config_schema": {"bot_filter": {"type": "bool", "default": True, "description": "过滤 bot 消息"}, "max_preview_length": {"type": "int", "default": 760, "description": "告警预览最大字符数"}}}
+    "config_schema": {"bot_filter": {"type": "bool", "default": True, "description": "过滤 bot 消息"}, "max_preview_length": {"type": "int", "default": 760, "description": "告警预览最大字符数"}, "sender_id_blacklist": {"type": "list", "default": [], "description": "屏蔽的用户 ID 列表"}, "sender_name_keywords": {"type": "list", "default": [], "description": "屏蔽的昵称关键词列表（包含即屏蔽）"}}}
 
 from tgr.plugin_sdk import PluginContext, RuleHit, build_message_link, collect_rule_hits, display_sender_name, render_alert_message
 
@@ -53,7 +53,18 @@ def setup(ctx: PluginContext):
             sender = await event.get_sender()
             if bot_filter and getattr(sender, "bot", False):
                 return
+            # 用户 ID 黑名单
+            sid_blacklist = ctx.config.get("sender_id_blacklist", [])
+            if sid_blacklist and int(getattr(sender, "id", 0)) in [int(x) for x in sid_blacklist]:
+                return
             sender_name = display_sender_name(sender, "隐藏用户")
+            # 昵称关键词屏蔽
+            name_keywords = ctx.config.get("sender_name_keywords", [])
+            if name_keywords and sender_name:
+                lower_name = sender_name.lower()
+                for kw in name_keywords:
+                    if str(kw).lower() in lower_name:
+                        return
         except Exception:
             sender_name = "广播系统"
 
