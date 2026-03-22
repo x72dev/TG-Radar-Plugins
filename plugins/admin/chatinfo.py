@@ -8,8 +8,6 @@ from tgr.plugin_sdk import PluginContext
 def setup(ctx: PluginContext):
     ui, log = ctx.ui, ctx.log
 
-    # ── 转发消息提取群 ID（通过 hook，由主 handler 调用）──
-
     @ctx.hook("chatinfo_forward", summary="检测转发消息提取来源群 ID", order=10)
     async def on_forward(app, event):
         fwd = getattr(event, "fwd_from", None) or getattr(getattr(event, "message", None), "fwd_from", None)
@@ -62,12 +60,16 @@ def setup(ctx: PluginContext):
             title = "无法获取"
 
         cmd_prefix = getattr(getattr(app, "config", None), "cmd_prefix", "-")
+        p = ui.escape(cmd_prefix)
         rows = [ui.bullet("名称", title, code=False), ui.bullet("ID", source_id), ui.bullet("类型", stype, code=False)]
         tips = []
         if stype in ("频道", "超级群", "群组"):
-            p = ui.escape(cmd_prefix)
             tips.append(f"设为告警频道: <code>{p}setalert {source_id}</code>")
             tips.append(f"设为通知频道: <code>{p}setnotify {source_id}</code>")
+        if stype in ("用户", "Bot"):
+            tips.append(f"屏蔽此用户: <code>{p}block id {source_id}</code>")
+        if title and title not in ("未知", "无法获取"):
+            tips.append(f"屏蔽此昵称: <code>{p}block name {ui.escape(title)}</code>")
         secs = [ui.section("来源信息", rows)]
         if tips:
             secs.append(ui.section("快捷操作", tips))
@@ -76,8 +78,6 @@ def setup(ctx: PluginContext):
         except Exception as exc:
             log.warning("发送失败: %s", exc)
         log.info("识别完成: %s (%s) = %s", title, stype, source_id)
-
-    # ── 分组变动监听 ──
 
     _filter_ref = None
 
@@ -114,9 +114,11 @@ def setup(ctx: PluginContext):
             _filter_ref = None
 
     import asyncio
+
     async def _delayed():
         await asyncio.sleep(2)
         await _setup_watcher()
+
     try:
         asyncio.get_running_loop().create_task(_delayed())
     except RuntimeError:
