@@ -1,187 +1,78 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:1a1b27,50:0d1117,100:161b22&height=120&section=header&fontSize=0" width="100%"/>
+<img src="docs/banner.svg" alt="TG-Radar Plugins Dynamic Banner" width="100%" style="max-width: 800px; margin-bottom: 24px;" />
 
-# 📦 TG-Radar Plugins
+# TG-Radar Plugins
 
-<a href="https://git.io/typing-svg"><img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=16&duration=3000&pause=1000&color=3FB950&center=true&vCenter=true&repeat=true&width=380&height=28&lines=Official+Plugin+Repository" alt="Typing SVG" /></a>
+**官方扩展与生态插件注册中心** <br />
+专为 TG-Radar 架构解耦设计，支持毫秒级无感热重载。
 
-<br/>
+<br />
 
-[![Plugins](https://img.shields.io/badge/7-3fb950?style=flat-square&label=plugins)](#-插件列表)&nbsp;
-[![SDK](https://img.shields.io/badge/PluginContext-58a6ff?style=flat-square&label=SDK)](#-sdk-接口)&nbsp;
-[![Hot Reload](https://img.shields.io/badge/✓-3fb950?style=flat-square&label=hot%20reload)](#-插件管理)&nbsp;
-[![Auto Fuse](https://img.shields.io/badge/✓-3fb950?style=flat-square&label=auto%20fuse)](#%EF%B8%8F-生命周期)
-
-<br/>
-
-[🏠 **核心仓库 →**](https://github.com/x72dev/TG-Radar) · [**快速开发**](#-快速开发) · [**SDK 接口**](#-sdk-接口) · [**插件管理**](#-插件管理)
+[**🏠 核心基座**](https://github.com/x72dev/TG-Radar) · [**🚀 快速接入**](#-快速接入) · [**📚 SDK 架构**](#-sdk-架构)
 
 </div>
 
 ---
 
-## 📋 插件列表
+## ⚡ 核心定位
 
-### Admin 插件
+此仓库为 `TG-Radar` 的专属插件池。所有的上层业务逻辑（包括管理面板、自动路由、规则解析等）均被剥离至此。
 
-| 插件 | 命令 | 配置 | 说明 |
-|:--|:--|:--|:--|
-| **general** | `ping` `status` `version` `config` `log` `jobs` | `panel_auto_delete_seconds` `recycle_command_seconds` | 通用面板 |
-| **folders** | `folders` `rules` `enable` `disable` | — | 分组管理 |
-| **rules** | `addrule` `setrule` `delrule` `setnotify` `setalert` `setprefix` | — | 规则维护 |
-| **routes** | `routes` `addroute` `delroute` `sync` `routescan` | `auto_sync_enabled/time` `auto_route_enabled/time` | 自动归纳 |
-| **system** | `restart` `update` | `restart_delay_seconds` | 系统任务 |
-| **chatinfo** | *(转发自动触发)* | — | 群 ID 识别 · 实时同步 |
+通过严苛的接口约束与沙盒化的 `PluginContext` SDK，插件在主核心的高频异步事件循环中运行，却能享受完全隔离的生命周期管理，支持 `Hot-Reload` 与异常熔断。
 
-### Core 插件
+## 📦 插件生态池
 
-| 插件 | 配置 | 说明 |
-|:--|:--|:--|
-| **keyword_monitor** | `bot_filter` `max_preview_length` | 关键词匹配与告警 |
+分为负责后台调度的 **Admin 组件** 与负责监听拦截的 **Core 组件**。
 
----
+| 组件名 | 类型 | 职责说明 |
+| :--- | :--- | :--- |
+| `general` | Admin | 基础系统监控、状态面板与日志分发 |
+| `folders` | Admin | 集群监控对象的动态生命周期管理（启停/移除） |
+| `rules` | Admin | 基于预编译正则表达式的高性能规则栈维护 |
+| `routes` | Admin | 数据智能归纳与自动化流量路由调度 |
+| `keyword_monitor` | Core | **核心引擎**：海量并发下的关键词高精度匹配与告警抛出 |
 
-## 🚀 快速开发
+## 🚀 快速接入
 
-保存到 `plugins/admin/hello.py`，发送 `-reload hello` 即刻生效：
+在 `TG-Radar` 的强解耦架构下，一行代码即可集成 SDK，创建一个支持热重载的全新组件：
 
 ```python
+# plugins/admin/hello.py
 PLUGIN_META = {"name": "hello", "version": "1.0.0", "kind": "admin"}
 from tgr.plugin_sdk import PluginContext
 
 def setup(ctx: PluginContext):
     @ctx.command("hello", summary="打招呼", usage="hello", category="示例")
-    async def _(app, event, args):
+    async def handler(app, event, args):
         await ctx.reply(event, ctx.ui.panel("Hello", [ctx.ui.section("", ["👋"])]))
 ```
 
+部署完成后，仅需在终端发送 `-reload hello` 即可将代码加载进内存上下文。
+
 <details>
-<summary>📄 <b>完整模板</b></summary>
+<summary><b>查看生命周期与 SDK 调试最佳实践</b></summary>
 
-```python
-PLUGIN_META = {
-    "name": "my_plugin", "version": "1.0.0", "description": "说明",
-    "kind": "admin",
-    "config_schema": {"my_key": {"type": "int", "default": 10, "description": "配置说明"}},
-}
-from tgr.plugin_sdk import PluginContext
+<br/>
 
-def setup(ctx: PluginContext):
-    ui, log = ctx.ui, ctx.log
+**避免阻塞事件循环**
+由于基于 `asyncio`，**严禁在 handler 中执行长时间的同步阻塞操作**（如大文件下载或 `requests.get`）。
+请使用 `aiohttp` 或将繁重任务转移至系统后台总线：`ctx.bus.submit_job("kind", func, *args)`。
 
-    @ctx.command("mycommand", summary="做某事", usage="mycommand [参数]", category="分类")
-    async def handler(app, event, args):
-        value = ctx.config.get("my_key")
-        log.info("执行, args=%s", args)
-        await ctx.reply(event, ui.panel("结果", [
-            ui.section("输出", [ui.bullet("参数", args), ui.bullet("配置", value)])]))
+**插件状态隔离持久化**
+避免在模块顶部定义全局变量缓存数据。重载机制会重置内存。
+请强制使用 `ctx.config` 或 `ctx.db` 接口来管理所有持久化状态。
 
-    @ctx.on("rule_changed")
-    async def on_event(data): log.info("事件: %s", data)
-
-    @ctx.healthcheck
-    async def check(app): return "ok", "正常"
-
-    @ctx.cleanup
-    async def clean(): log.info("清理完成")
-```
 </details>
 
----
+## 📚 SDK 架构
 
-## 📚 SDK 接口
+SDK 暴露了沙盒内的高权限接口，封装了底层的通信细节。
 
-| 分类 | 接口 | 说明 |
-|:--|:--|:--|
-| 配置 | `ctx.config.get / set / all` | 读写插件配置（`configs/name.json`） |
-| 数据 | `ctx.db.list_folders / get_rules / log_event` | 白名单 DB |
-| 渲染 | `ctx.ui.panel / section / bullet / escape` | HTML 渲染 |
-| 任务 | `ctx.bus.submit_job(kind, ...)` | 后台任务 |
-| 日志 | `ctx.log` | 插件独立日志 |
-| 事件 | `ctx.emit` / `@ctx.on` | 事件总线 |
-| 注册 | `@ctx.command` / `@ctx.hook` / `@ctx.cleanup` / `@ctx.healthcheck` | 装饰器 |
-| 工具 | `ctx.client` / `ctx.reply` | Telethon / 回复 |
-
----
-
-## 🔧 插件管理
-
-| 命令 | 说明 |
-|:--|:--|
-| `-plugins` | 全部状态 |
-| `-reload name` | 热重载 |
-| `-pluginreload` | 全量重载 |
-| `-pluginenable / -plugindisable name` | 启用 / 停用 |
-| `-pluginconfig name [key] [val]` | 配置管理 |
-| `-update` | 拉取更新 + 自动重载 |
-
----
-
-## 📂 插件配置
-
-
-声明了 `config_schema` 的插件自动生成配置文件，也可直接编辑后 `-reload`：
-
-```json
-// configs/my_plugin.json 示例
-{
-  "api_endpoint": "https://api.example.com",
-  "retry_count": 3,
-  "allowed_users": [12345, 67890]
-}
-```
-
-```text
-configs/
-
-├── general.json           {"panel_auto_delete_seconds": 45, "recycle_command_seconds": 8}
-├── routes.json            {"auto_sync_enabled": true, "auto_sync_time": "03:40", ...}
-├── keyword_monitor.json   {"bot_filter": true, "max_preview_length": 760}
-└── system.json            {"restart_delay_seconds": 2.0}
-```
-
----
-
-
-## 🛠️ 插件调试最佳实践
-
-1. **查看日志**：如果插件出现语法错误或逻辑异常，可通过核心命令 `-log [插件名]` 查看错误堆栈，或者直接在宿主机查看 `TG-Radar/runtime/logs/` 目录下的对应日志文件。
-2. **避免阻塞**：由于 Telethon 是异步框架，**请勿在 handler 中执行长时间的阻塞操作**（如大文件下载、同步的网络请求 `requests.get` 等）。这会导致整个机器人的事件循环卡死。
-   - 解决方案：使用 `aiohttp` 进行异步请求，或者将耗时任务丢给后台队列：`ctx.bus.submit_job("kind", func, *args)`。
-3. **状态隔离**：请尽量避免在插件模块层级使用全局变量保存可变状态，建议利用 `ctx.config` 或 `ctx.db` 进行状态持久化，以确保 `-reload` 后状态不会丢失。
-
----
-
-## ♻️ 生命周期
-
-
-```
-  ┌──────┐   setup() 成功   ┌────────┐   连续失败 N 次   ┌──────┐
-  │ 发现  │ ───────────────→ │ 运行中  │ ────────────────→ │ 熔断  │
-  └──────┘                  └────────┘                   └──────┘
-      │                        ↑    │                       │
-      │ 异常                   │    │ -plugindisable        │ -reload
-      ↓                       │    ↓                       │
-  ┌────────┐  修复+-reload    │  ┌──────┐  -pluginenable   │
-  │ 加载失败 │ ───────────────┘  │ 已停用 │ ────────────────┘
-  └────────┘                    └──────┘
-```
-
----
-
-## ⚠️ 免责声明
-
-本项目仅供**学习与技术研究**用途。严禁用于非法活动。使用即表示同意。
-
----
-
-<div align="center">
-
-[**Core**](https://github.com/x72dev/TG-Radar) · [**Plugins**](https://github.com/x72dev/TG-Radar-Plugins)
-
-<sub>Built with Telethon · SQLite WAL · APScheduler</sub>
-
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:1a1b27,50:0d1117,100:161b22&height=80&section=footer&fontSize=0" width="100%"/>
-
-</div>
+| 模块抽象 | 调用边界 |
+| :--- | :--- |
+| `ctx.config` | `.get()` / `.set()` — 读取或操作插件专用的持久化配置文件 |
+| `ctx.db` | `.log_event()` — 穿透至 SQLite 层面的统一日志规整 |
+| `ctx.ui` | `.panel()` / `.bullet()` — 在 Telegram 输出标准化的高规格 HTML 面板 |
+| `ctx.bus` | `.submit_job()` — 将重度任务甩出主事件循环进入后台调度池 |
+| `@ctx.hook` | 将自身挂载至 Core 层面的特定高频事件节点 |
